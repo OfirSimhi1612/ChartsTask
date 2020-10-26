@@ -8,9 +8,10 @@ import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'r
 function App (){
 
     const [rawData, setRawData] = useState();
+    const [worldCalc, setWorldCalc] = useState()
     const [chartData, setChartData] = useState({
-        line1: 'Israel',
-        line2: 'China'
+        line1: 'Israel ',
+        line2: 'China (Anhui)'
     });
     const [selectOptions, setSelectOptions] = useState([])
     
@@ -21,10 +22,17 @@ function App (){
         .then(res => {
             let splited = res.split('\n')
             splited = splited.map(row => row.split(','))
+            splited.pop()
             const data = []
+            for(let country = 1; country < splited.length; country++){
+                if((/[^0-9]/g).test(splited[country][4])){
+                    splited[country] = [splited[country][0], `${splited[country][1]},${splited[country][2]}`, ...splited[country].slice(3)]
+                }
+            }
             for(let day = 4; day < splited[0].length; day++){
                 const dayData={}
                 for(let country = 1; country < splited.length; country++){
+                    if(/[^0-9]/g.test())
                     dayData[`${splited[country][1]} ${splited[country][0] ? `(${splited[country][0]})` : ''}`] = splited[country][day]
                 }
                 data.push({
@@ -33,6 +41,22 @@ function App (){
                 })
             }
             setRawData(data)
+
+            const worldCount = data.map(day => {
+                const sum = Object.keys(day).reduce((sum, country) => {
+                    if(country === 'date'){
+                        return sum
+                    } else {
+                        return sum +  parseInt(day[country])
+                    }
+                }, 0)
+                return {
+                    date: day.date,
+                    sum: sum
+                }
+            })
+
+            setWorldCalc(worldCount)
 
             const countries = Object.keys(data[0]).slice(1).map(country => {
                 return {
@@ -54,9 +78,9 @@ function App (){
 
     const getMax = React.useCallback(() => {
         if(rawData){
-            const values = rawData.map(day => [parseInt(day[chartData.line1]) || 0, parseInt(day[chartData.line2]) || 0]).flat()
-            console.log(values)
-            // return Math.max(...values)
+            const values = rawData.map(day => [Math.floor(parseInt(day[chartData.line1])), Math.floor(parseInt(day[chartData.line2]))]).flat()
+             const max = Math.max(...values) + 10000 + (1000 - Math.max(...values) % 1000)
+             return max
         }
             
     }, [chartData])
@@ -68,18 +92,29 @@ function App (){
                 <LineChart width={730} height={500} data={rawData}
                     margin={{ top: 50, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis type='number'/>
+                    <XAxis dataKey="date"/>
+                    <YAxis type='number' allowDataOverflow={true}domain={[0, getMax() || 1000000]}/>
                     <Tooltip />
                     <Legend />
                     <Line type="monotone" dataKey={chartData.line1} stroke="#8884d8" />
                     <Line type="monotone" dataKey={chartData.line2} stroke="#82ca9d" />
                 </LineChart>
             </div>}
-            <div style={{width: "50vw", margin: "auto"}}>
-                <Select options={selectOptions} defaultInputValue={'Israel'} onChange={(e) => handleChange('line1', e.value)}/> 
-                <Select options={selectOptions} defaultInputValue={'China'} onChange={(e) => handleChange('line2', e.value)}/> 
+            <div style={{width: "500px", marginLeft: "50px"}}>
+                <Select options={selectOptions} onChange={(e) => handleChange('line1', e.value)}/> 
+                <Select options={selectOptions} onChange={(e) => handleChange('line2', e.value)}/> 
             </div>
+            {worldCalc && <div>
+                <LineChart width={730} height={500} data={worldCalc}
+                    margin={{ top: 50, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date"/>
+                    <YAxis type='number' allowDataOverflow={true}domain={[0,worldCalc[worldCalc.length - 1].sum]}/>
+                    <Tooltip />
+                    <Legend />
+                    <Line type="monotone" name={'World Total Cases'} dataKey={'sum'} stroke="#8884d8" />
+                </LineChart>
+            </div>}
         </>
     )
 }
